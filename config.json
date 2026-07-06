@@ -1,0 +1,69 @@
+{
+  "Meta": {
+    "Description": "Windows Setup Configuration for IoT LTSC & Pro",
+    "Version": "1.0.0"
+  },
+  "System": {
+    "RebootIfRequired": true,
+    "LoggingEnabled": true,
+    "LogFilePath": "C:\\Windows\\Temp\\WindowsSetupUtility.log",
+    "BootstrapOnly": false
+  },
+  "Bootstrap": {
+    "InstallWinget": true,
+    "InstallWindowsTerminal": true,
+    "InstallPowerShell7": true
+  },
+  "Packages": {
+    "Winget": {
+      "Enable": true,
+      "InstallList": [
+        "Git.Git",
+        "Microsoft.VisualStudioCode",
+        "7zip.7zip"
+      ]
+    },
+    "CustomInstallers": []
+  },
+  "Features": {
+    "Enable": [
+      "Microsoft-Windows-Subsystem-Linux"
+    ],
+    "Disable": []
+  },
+  "Services": {
+    "Configure": []
+  },
+  "IoT": {
+    "ShellLauncher": {
+      "Enable": false,
+      "ShellPath": "C:\\Path\\To\\CustomShell.exe"
+    },
+    "UnifiedWriteFilter": {
+      "Configure": false,
+      "OverlayType": "RAM",
+      "OverlaySizeMB": 1024,
+      "Exclusions": []
+    },
+    "AutoLogon": {
+      "Enable": false,
+      "Username": "Operator",
+      "Password": "SafePassword123!",
+      "Domain": ""
+    },
+    "LockScreen": {
+      "DisableLockScreen": true,
+      "DisableKeyCombinations": false
+    }
+  },
+  "Security": {
+    "Defender": {
+      "RealTimeProtection": true,
+      "Exclusions": []
+    },
+    "UAC": {
+      "ConsentPromptBehaviorAdmin": 5,
+      "EnableLUA": 1
+    }
+  }
+}
