@@ -6,7 +6,8 @@
 param (
     [ValidateSet("CLI", "GUI", "Unattended")]
     [string]$Mode = "GUI",
-    [string]$ConfigPath = "config.json"
+    [string]$ConfigPath = "config.json",
+    [switch]$ResumeTia
 )
 
 # 1. Relaunch check for Administrator, STA Mode (WPF UI requires STA), and PowerShell Version
@@ -56,6 +57,9 @@ if ($needRelaunch) {
     if ($PSBoundParameters.ContainsKey('ConfigPath')) {
         $argsList += " -ConfigPath `"$ConfigPath`""
     }
+    if ($ResumeTia) {
+        $argsList += " -ResumeTia"
+    }
 
     # Relaunch process elevated using the best available PowerShell executable
     Start-Process $psExe -ArgumentList $argsList -Verb RunAs
@@ -70,6 +74,7 @@ $modulesDir = Join-Path $scriptDir "modules"
 . (Join-Path $modulesDir "utils.ps1")
 . (Join-Path $modulesDir "bootstrap.ps1")
 . (Join-Path $modulesDir "packages.ps1")
+. (Join-Path $modulesDir "tia.ps1")
 
 # Verify configuration file
 $resolvedConfigPath = Resolve-Path -Path (Join-Path $scriptDir $ConfigPath) -ErrorAction SilentlyContinue
@@ -164,7 +169,13 @@ function Execute-FullSetup {
     }
 }
 
-# 4. Handle Execution Modes
+# 4. Handle Resume or Execution Modes
+if ($ResumeTia) {
+    Write-Log "Resuming TIA Portal Installation pipeline..."
+    Resume-TiaInstallation
+    exit
+}
+
 switch ($Mode) {
     "Unattended" {
         Write-Log "Starting Unattended Mode..."
@@ -172,6 +183,29 @@ switch ($Mode) {
     }
     
     "CLI" {
+        # Helper for interactive folder path selection in CLI
+        function Start-TiaInstallationInteractive {
+            $folderPath = $null
+            try {
+                Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+                $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+                $dialog.Description = "Select the folder containing TIA Portal packages"
+                if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                    $folderPath = $dialog.SelectedPath
+                }
+            } catch {}
+
+            if ([string]::IsNullOrEmpty($folderPath)) {
+                $folderPath = Read-Host "Enter the path to the folder containing TIA Portal setup files: "
+            }
+
+            if (-not [string]::IsNullOrEmpty($folderPath)) {
+                Start-TiaInstallation -FolderPath $folderPath
+            } else {
+                Write-WarningLog "No folder path selected/entered. TIA Portal installation cancelled."
+            }
+        }
+
         # Console Mode interactive menu
         while ($true) {
             Clear-Host
@@ -186,26 +220,29 @@ switch ($Mode) {
             Write-Host " [1] Run FULL Setup (Bootstrap + Applications)"
             Write-Host " [2] Run Core Bootstrapping Only (Chocolatey, Terminal, PS7)"
             Write-Host " [3] Install Applications List (Chocolatey)"
-            Write-Host " [4] Reboot System"
-            Write-Host " [5] Exit"
+            Write-Host " [4] Install TIA Portal"
+            Write-Host " [5] Reboot System"
+            Write-Host " [6] Exit"
             Write-Host "==========================================================" -ForegroundColor Cyan
             
-            $choice = Read-Host "Select an option [1-5]"
+            $choice = Read-Host "Select an option [1-6]"
             switch ($choice) {
                 "1" { Execute-FullSetup -RebootIfRequired $false; Read-Host "Press Enter to return..." }
                 "2" { Execute-FullSetup -RunBootstrap $true -RunPackages $false -RebootIfRequired $false; Read-Host "Press Enter to return..." }
                 "3" { Execute-FullSetup -RunBootstrap $false -RunPackages $true -RebootIfRequired $false; Read-Host "Press Enter to return..." }
-                "4" { Restart-Computer -Force }
-                "5" { exit }
+                "4" { Start-TiaInstallationInteractive; Read-Host "Press Enter to return..." }
+                "5" { Restart-Computer -Force }
+                "6" { exit }
             }
         }
     }
     
     "GUI" {
-        # Load WPF assemblies
+        # Load GUI assemblies
         Add-Type -AssemblyName PresentationFramework
         Add-Type -AssemblyName PresentationCore
         Add-Type -AssemblyName WindowsBase
+        Add-Type -AssemblyName System.Windows.Forms
 
         # XAML Layout String
         $xaml = @"
@@ -259,6 +296,28 @@ switch ($Mode) {
                                 <StackPanel>
                                     <TextBlock Text="Application Provisioning" FontSize="12" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,8"/>
                                     <CheckBox Name="chkRunPackages" Content="Install Applications List" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,4"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- TIA Portal -->
+                            <Border BorderBrush="#2A2A3F" BorderThickness="0,0,0,1" Padding="0,0,0,10" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Siemens TIA Portal" FontSize="12" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,8"/>
+                                    <Button Name="btnInstallTia" Content="Install TIA Portal" Height="28" Background="#06B6D4" Foreground="#FFFFFF" FontWeight="Bold" BorderThickness="0">
+                                        <Button.Resources>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}" CornerRadius="4">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </Button.Resources>
+                                    </Button>
                                 </StackPanel>
                             </Border>
 
@@ -358,6 +417,7 @@ switch ($Mode) {
             # Disable inputs during run
             $wpfbtnRun.IsEnabled = $false
             $wpfbtnCancel.IsEnabled = $false
+            $wpfbtnInstallTia.IsEnabled = $false
             $wpfchkInstallChoco.IsEnabled = $false
             $wpfchkInstallTerminal.IsEnabled = $false
             $wpfchkInstallPS7.IsEnabled = $false
@@ -382,6 +442,64 @@ switch ($Mode) {
                 # Re-enable inputs
                 $wpfbtnRun.IsEnabled = $true
                 $wpfbtnCancel.IsEnabled = $true
+                $wpfbtnInstallTia.IsEnabled = $true
+                $wpfchkInstallChoco.IsEnabled = $true
+                $wpfchkInstallTerminal.IsEnabled = $true
+                $wpfchkInstallPS7.IsEnabled = $true
+                $wpfchkRunPackages.IsEnabled = $true
+                $wpfchkReboot.IsEnabled = $true
+                $Global:UIConsoleTextBox = $null
+            }
+        })
+
+        # Button Install TIA Portal Event
+        $wpfbtnInstallTia.Add_Click({
+            # Disable inputs during run
+            $wpfbtnRun.IsEnabled = $false
+            $wpfbtnCancel.IsEnabled = $false
+            $wpfbtnInstallTia.IsEnabled = $false
+            $wpfchkInstallChoco.IsEnabled = $false
+            $wpfchkInstallTerminal.IsEnabled = $false
+            $wpfchkInstallPS7.IsEnabled = $false
+            $wpfchkRunPackages.IsEnabled = $false
+            $wpfchkReboot.IsEnabled = $false
+            
+            $wpftxtConsoleLog.Clear()
+            $Global:UIConsoleTextBox = $wpftxtConsoleLog
+
+            # Prompt for folder path using FolderBrowserDialog
+            $folderPath = $null
+            try {
+                $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+                $dialog.Description = "Select the folder containing TIA Portal packages"
+                if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+                    $folderPath = $dialog.SelectedPath
+                }
+            } catch {
+                Write-ErrorLog "Failed to open folder dialog. Error: $_"
+            }
+
+            if (-not [string]::IsNullOrEmpty($folderPath)) {
+                try {
+                    Start-TiaInstallation -FolderPath $folderPath
+                } finally {
+                    # Re-enable inputs
+                    $wpfbtnRun.IsEnabled = $true
+                    $wpfbtnCancel.IsEnabled = $true
+                    $wpfbtnInstallTia.IsEnabled = $true
+                    $wpfchkInstallChoco.IsEnabled = $true
+                    $wpfchkInstallTerminal.IsEnabled = $true
+                    $wpfchkInstallPS7.IsEnabled = $true
+                    $wpfchkRunPackages.IsEnabled = $true
+                    $wpfchkReboot.IsEnabled = $true
+                    $Global:UIConsoleTextBox = $null
+                }
+            } else {
+                Write-WarningLog "No folder path selected. TIA Portal installation cancelled."
+                # Re-enable inputs
+                $wpfbtnRun.IsEnabled = $true
+                $wpfbtnCancel.IsEnabled = $true
+                $wpfbtnInstallTia.IsEnabled = $true
                 $wpfchkInstallChoco.IsEnabled = $true
                 $wpfchkInstallTerminal.IsEnabled = $true
                 $wpfchkInstallPS7.IsEnabled = $true
