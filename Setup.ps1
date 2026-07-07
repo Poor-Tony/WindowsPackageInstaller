@@ -152,6 +152,9 @@ function Execute-FullSetup {
             if ($null -ne $config.Packages.CustomInstallers) {
                 Install-CustomInstallers -CustomInstallersList ($config.Packages.CustomInstallers)
             }
+            if ($null -ne $config.Packages.NerdFonts) {
+                Install-SystemNerdFonts -FontList ($config.Packages.NerdFonts)
+            }
         }
     }
 

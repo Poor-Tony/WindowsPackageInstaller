@@ -24,6 +24,24 @@
       "git",
       "onlyoffice"
     ],
-    "CustomInstallers": []
+    "CustomInstallers": [
+      {
+        "Name": "btop",
+        "Url": "https://github.com/aristocratos/btop4win/releases/latest/download/btop4win-LHM-x64.zip",
+        "Destination": "C:\\Program Files\\btop",
+        "AddToPath": true
+      }
+    ],
+    "NerdFonts": [
+      "CascadiaCode",
+      "CascadiaMono",
+      "FiraCode",
+      "Inconsolata",
+      "JetBrainsMono",
+      "Noto",
+      "SourceCodePro",
+      "UbuntuMono",
+      "ZedMono"
+    ]
   }
 }
