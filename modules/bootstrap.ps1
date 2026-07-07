@@ -5,7 +5,7 @@
 
 # Fallback links in case GitHub API is rate-limited or offline
 $Global:FallbackWingetBundle = "https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-$Global:FallbackWingetLicense = "https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/c8a2b535496440e29b13970b5550a266_License1.xml"
+$Global:FallbackWingetLicense = "https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/76fba573f02545629706ab99170237bc_License1.xml"
 $Global:FallbackTerminalBundle = "https://github.com/microsoft/terminal/releases/download/v1.20.11781.0/Microsoft.WindowsTerminal_1.20.11781.0_8wekyb3d8bbwe.msixbundle"
 $Global:FallbackPowerShellMsi = "https://github.com/PowerShell/PowerShell/releases/download/v7.4.3/PowerShell-7.4.3-win-x64.msi"
 
