@@ -29,19 +29,38 @@ function Get-TiaPackages {
     $packages = @()
     foreach ($file in $files) {
         $type = $file.Extension.ToUpper().Replace(".", "")
+        # Modern TIA Portal main packages combine STEP 7, Safety, and WinCC.
+        $isCombined = ($file.Name -match "STEP7|STEP_7|TIA_Portal|TIA-Portal") -and ($file.Name -match "WinCC")
         $packages += [PSCustomObject]@{
             Path = $file.FullName
             Name = $file.Name
             Type = $type
             Size = $file.Length
             IsMain = $false
+            IsCombined = $isCombined
             Status = "Pending"
+        }
+    }
+
+    # Check for incompatible base packages (e.g. WinCC Unified vs WinCC Professional)
+    $combinedPackages = $packages | Where-Object { $_.IsCombined }
+    if ($combinedPackages.Count -gt 1) {
+        $hasUnified = $combinedPackages | Where-Object { $_.Name -match "Unified" }
+        $hasProfessional = $combinedPackages | Where-Object { $_.Name -match "WINCC_Prof|WinCC_Prof" -or ($_.Name -match "Prof" -and $_.Name -notmatch "Unified") }
+        
+        if ($hasUnified -and $hasProfessional) {
+            Write-ErrorLog "Incompatible TIA Portal base packages detected in folder: $FolderPath"
+            Write-ErrorLog "  - Unified: $($hasUnified.Name)"
+            Write-ErrorLog "  - Professional: $($hasProfessional.Name)"
+            Write-ErrorLog "WinCC Unified and WinCC Professional are not compatible and cannot be installed side-by-side."
+            Write-ErrorLog "Please keep only one of these base installers in the folder and restart the setup."
+            return @()
         }
     }
 
     # Identify main package:
     # Look for STEP7, STEP_7, TIA_Portal, Professional in name.
-    # Exclude helper keywords like PLCSIM, Startdrive, Safety, WinCC unless nothing else matches.
+    # Exclude helper keywords like PLCSIM, Startdrive, Safety unless they are part of a combined package.
     $mainCandidates = $packages | Where-Object { 
         $_.Name -match "STEP7" -or 
         $_.Name -match "STEP_7" -or 
@@ -52,11 +71,14 @@ function Get-TiaPackages {
 
     $mainPackage = $null
     if ($mainCandidates.Count -gt 0) {
-        # Exclude sub-packages if possible to find the actual main installer
+        # Exclude sub-packages if possible to find the actual main installer.
+        # Combined packages should NOT be excluded even if they match "Safety".
         $filteredCandidates = $mainCandidates | Where-Object {
-            $_.Name -notmatch "PLCSIM" -and 
-            $_.Name -notmatch "Startdrive" -and 
-            $_.Name -notmatch "Safety"
+            $_.IsCombined -or (
+                $_.Name -notmatch "PLCSIM" -and 
+                $_.Name -notmatch "Startdrive" -and 
+                $_.Name -notmatch "Safety"
+            )
         }
         if ($filteredCandidates.Count -gt 0) {
             # Pick the largest of these
@@ -77,12 +99,25 @@ function Get-TiaPackages {
         Write-Log "Identified main package: $($mainPackage.Name) (Size: $([Math]::Round($mainPackage.Size / 1GB, 2)) GB)"
     }
 
-    # Sort packages: Main package first, then others alphabetically
+    # Sort packages: Main package first, then others alphabetically.
+    # Exclude other combined/base packages to avoid double installation of incompatible main packages.
     $sortedPackages = @()
     if ($null -ne $mainPackage) {
         $sortedPackages += $mainPackage
     }
-    $sortedPackages += $packages | Where-Object { -not $_.IsMain } | Sort-Object Name
+    
+    $addons = @()
+    foreach ($pkg in $packages) {
+        if (-not $pkg.IsMain) {
+            if ($pkg.IsCombined) {
+                Write-WarningLog "Excluding other base/combined package from installation list: $($pkg.Name)"
+            } else {
+                $addons += $pkg
+            }
+        }
+    }
+    
+    $sortedPackages += $addons | Sort-Object Name
 
     return $sortedPackages
 }
