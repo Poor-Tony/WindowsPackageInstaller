@@ -138,9 +138,9 @@ function Bootstrap-Winget {
         return $false
     }
 
-    # Fetch latest Winget download URLs from GitHub API, or fall back
-    $wingetBundleUrl = Get-GitHubReleaseAsset -Repo "microsoft/winget-cli" -Extension "msixbundle" -FallbackUrl $Global:FallbackWingetBundle
-    $wingetLicenseUrl = Get-GitHubReleaseAsset -Repo "microsoft/winget-cli" -Extension "xml" -FallbackUrl $Global:FallbackWingetLicense
+    # Force the use of the stable v1.8.1911 release which does not require Windows App Runtime
+    $wingetBundleUrl = $Global:FallbackWingetBundle
+    $wingetLicenseUrl = $Global:FallbackWingetLicense
 
     $bundlePath = Join-Path $TempDir "Microsoft.DesktopAppInstaller.msixbundle"
     $licensePath = Join-Path $TempDir "Microsoft.DesktopAppInstaller.xml"
