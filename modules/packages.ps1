@@ -9,11 +9,25 @@ function Install-SystemPackages {
         [array]$PackageList
     )
 
+    $wingetPath = "winget.exe"
+    $winAppPath = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
+    $absoluteWinget = Join-Path $winAppPath "winget.exe"
+    
     $wingetFunctional = $false
-    if (Get-Command "winget" -ErrorAction SilentlyContinue) {
+    if (Test-Path -Path $absoluteWinget) {
+        $wingetPath = $absoluteWinget
         try {
-            # Test if it runs
+            $null = & $wingetPath --version
+            $wingetFunctional = $true
+        } catch {
+            Write-WarningLog "Absolute winget.exe exists but failed to execute: $_"
+        }
+    }
+    
+    if (-not $wingetFunctional -and (Get-Command "winget" -ErrorAction SilentlyContinue)) {
+        try {
             $null = winget --version
+            $wingetPath = "winget.exe"
             $wingetFunctional = $true
         } catch {
             Write-WarningLog "Winget binary is registered but failed to execute."
@@ -27,7 +41,7 @@ function Install-SystemPackages {
         foreach ($pkg in $PackageList) {
             Write-Log "Installing package: $pkg ..."
             try {
-                $process = Start-Process -FilePath "winget.exe" -ArgumentList "install --id `"$pkg`" --silent --accept-source-agreements --accept-package-agreements" -Wait -NoNewWindow -PassThru -ErrorAction Stop
+                $process = Start-Process -FilePath $wingetPath -ArgumentList "install --id `"$pkg`" --silent --accept-source-agreements --accept-package-agreements" -Wait -NoNewWindow -PassThru -ErrorAction Stop
                 $exitCode = $process.ExitCode
                 
                 # Check for success codes (0, or common already-installed exit codes)

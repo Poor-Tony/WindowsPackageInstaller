@@ -152,31 +152,40 @@ function Bootstrap-Winget {
     if ($d1 -and $d2) {
         try {
             Write-Log "Installing Windows Package Manager (AppInstaller)..."
-            # On some IoT LTSC systems, registering via AppxProvisionedPackage is better to support all users
-            # Fall back to Add-AppxPackage if provisioned fails or isn't applicable
+            
+            # 1. Provision for all users (to support future logins)
             try {
                 Write-Log "Attempting to register provisioned package for all users..."
                 Add-AppxProvisionedPackage -Online -PackagePath $bundlePath -LicensePath $licensePath -ErrorAction Stop | Out-Null
-                Write-Success "WinGet provisioned successfully."
+                Write-Success "WinGet provisioned successfully for all users."
             } catch {
-                Write-WarningLog "Add-AppxProvisionedPackage failed: $_. Falling back to standard Add-AppxPackage..."
-                Add-AppxPackage -Path $bundlePath -ErrorAction Stop
-                Write-Success "WinGet installed for the current user."
+                Write-WarningLog "Add-AppxProvisionedPackage failed: $_. Continuing to current user registration..."
             }
 
+            # 2. Register for the current user (required to be immediately available in this session)
+            Write-Log "Registering AppInstaller package for the current user..."
+            Add-AppxPackage -Path $bundlePath -ErrorAction Stop
+            Write-Success "WinGet package registered for current user."
+
             # Warm up and register paths
-            Write-Log "Registering Winget application package..."
+            Write-Log "Registering Winget application path..."
             $winAppPath = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
             if (-not ($env:PATH -like "*$winAppPath*")) {
                 Write-Log "Adding WindowsApps to session PATH environment variables."
                 $env:PATH += ";$winAppPath"
             }
             
-            # Run test
+            # Run test using absolute path to bypass command cache in current session
             Start-Sleep -Seconds 2
-            $versionTest = winget --version
-            Write-Success "Winget is now functional! Version: $versionTest"
-            return $true
+            $targetExe = Join-Path $winAppPath "winget.exe"
+            if (Test-Path -Path $targetExe) {
+                $versionTest = & $targetExe --version
+                Write-Success "Winget is now functional! Version: $versionTest"
+                return $true
+            } else {
+                Write-ErrorLog "winget.exe was not found in $winAppPath after installation."
+                return $false
+            }
         } catch {
             Write-ErrorLog "Failed to register Winget package. Error: $_"
             return $false
