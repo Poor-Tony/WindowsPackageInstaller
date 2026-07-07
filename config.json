@@ -1,7 +1,7 @@
 {
   "Meta": {
-    "Description": "Windows Setup Configuration for LTSC & Pro (Slimmed)",
-    "Version": "1.1.0"
+    "Description": "Windows Setup Configuration for LTSC & Pro (Chocolatey Version)",
+    "Version": "1.2.0"
   },
   "System": {
     "RebootIfRequired": false,
@@ -9,24 +9,21 @@
     "LogFilePath": "C:\\Windows\\Temp\\WindowsSetupUtility.log"
   },
   "Bootstrap": {
-    "InstallWinget": true,
+    "InstallChocolatey": true,
     "InstallWindowsTerminal": true,
     "InstallPowerShell7": true
   },
   "Packages": {
-    "Winget": {
-      "Enable": true,
-      "InstallList": [
-        "Mozilla.Firefox",
-        "7zip.7zip",
-        "Notepad++.Notepad++",
-        "Microsoft.VisualStudioCode",
-        "ZedIndustries.Zed",
-        "JanDeDobbeleer.OhMyPosh",
-        "Git.Git",
-        "ONLYOFFICE.DesktopEditors"
-      ]
-    },
+    "InstallList": [
+      "firefox",
+      "7zip",
+      "notepadplusplus",
+      "vscode",
+      "zed",
+      "oh-my-posh",
+      "git",
+      "onlyoffice"
+    ],
     "CustomInstallers": []
   }
 }

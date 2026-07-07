@@ -1,5 +1,5 @@
 # Setup.ps1
-# Main entrypoint script for Windows Setup Utility (Slimmed Down)
+# Main entrypoint script for Windows Setup Utility (Chocolatey Version)
 # Usage: .\Setup.ps1 [-Mode <CLI|GUI|Unattended>] [-ConfigPath <path>]
 
 [CmdletBinding()]
@@ -95,11 +95,11 @@ function Execute-FullSetup {
     Write-Log "===== WINDOWS SETUP PIPELINE STARTED ====="
     $globalRebootNeeded = $false
 
-    # Step 1: Bootstrapping (WinGet, Terminal, PowerShell 7, Choco Fallback)
+    # Step 1: Bootstrapping (Chocolatey, Terminal, PowerShell 7)
     if ($RunBootstrap) {
         Run-PipelineStep "Bootstrap Core Tools" {
             $bootstrapSuccess = Run-BootstrapProcess `
-                -InstallWinget ($config.Bootstrap.InstallWinget) `
+                -InstallChocolatey ($config.Bootstrap.InstallChocolatey) `
                 -InstallTerminal ($config.Bootstrap.InstallWindowsTerminal) `
                 -InstallPS7 ($config.Bootstrap.InstallPowerShell7)
                 
@@ -112,8 +112,8 @@ function Execute-FullSetup {
     # Step 2: Application Packages List
     if ($RunPackages -and $null -ne $config.Packages) {
         Run-PipelineStep "Application Package Provisioning" {
-            if ($config.Packages.Winget.Enable -and $null -ne $config.Packages.Winget.InstallList) {
-                Install-SystemPackages -PackageList ($config.Packages.Winget.InstallList)
+            if ($null -ne $config.Packages.InstallList) {
+                Install-SystemPackages -PackageList ($config.Packages.InstallList)
             }
             if ($null -ne $config.Packages.CustomInstallers) {
                 Install-CustomInstallers -CustomInstallersList ($config.Packages.CustomInstallers)
@@ -155,8 +155,8 @@ switch ($Mode) {
             Write-Host " Log File    : $Global:LogFilePath" -ForegroundColor Gray
             Write-Host "----------------------------------------------------------"
             Write-Host " [1] Run FULL Setup (Bootstrap + Applications)"
-            Write-Host " [2] Run Core Bootstrapping Only (WinGet, Terminal, PS7)"
-            Write-Host " [3] Install Applications List (WinGet / Choco Fallback)"
+            Write-Host " [2] Run Core Bootstrapping Only (Chocolatey, Terminal, PS7)"
+            Write-Host " [3] Install Applications List (Chocolatey)"
             Write-Host " [4] Reboot System"
             Write-Host " [5] Exit"
             Write-Host "==========================================================" -ForegroundColor Cyan
@@ -199,7 +199,7 @@ switch ($Mode) {
                             <TextBlock Text="Windows Setup Utility" FontSize="24" FontWeight="Bold" Foreground="#8B5CF6"/>
                             <TextBlock Text="Automated bootstrapping &amp; package provisioning framework" FontSize="12" Foreground="#8E8EA2" Margin="0,4,0,0"/>
                         </StackPanel>
-                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Text="v1.1.0" Foreground="#06B6D4" FontSize="14" FontWeight="Bold"/>
+                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Text="v1.2.0" Foreground="#06B6D4" FontSize="14" FontWeight="Bold"/>
                     </Grid>
                 </Border>
                 
@@ -219,7 +219,7 @@ switch ($Mode) {
                             <Border BorderBrush="#2A2A3F" BorderThickness="0,0,0,1" Padding="0,0,0,10" Margin="0,0,0,10">
                                 <StackPanel>
                                     <TextBlock Text="Bootstrap Packages" FontSize="12" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,8"/>
-                                    <CheckBox Name="chkInstallWinget" Content="Bootstrap WinGet (Choco Fallback)" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,6"/>
+                                    <CheckBox Name="chkInstallChoco" Content="Bootstrap Chocolatey" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,6"/>
                                     <CheckBox Name="chkInstallTerminal" Content="Bootstrap Windows Terminal" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,6"/>
                                     <CheckBox Name="chkInstallPS7" Content="Bootstrap PowerShell 7" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,4"/>
                                 </StackPanel>
@@ -329,7 +329,7 @@ switch ($Mode) {
             # Disable inputs during run
             $wpfbtnRun.IsEnabled = $false
             $wpfbtnCancel.IsEnabled = $false
-            $wpfchkInstallWinget.IsEnabled = $false
+            $wpfchkInstallChoco.IsEnabled = $false
             $wpfchkInstallTerminal.IsEnabled = $false
             $wpfchkInstallPS7.IsEnabled = $false
             $wpfchkRunPackages.IsEnabled = $false
@@ -339,21 +339,21 @@ switch ($Mode) {
             $Global:UIConsoleTextBox = $wpftxtConsoleLog
             
             # Sync configuration object with GUI checkbox states
-            $config.Bootstrap.InstallWinget = $wpfchkInstallWinget.IsChecked -eq $true
+            $config.Bootstrap.InstallChocolatey = $wpfchkInstallChoco.IsChecked -eq $true
             $config.Bootstrap.InstallWindowsTerminal = $wpfchkInstallTerminal.IsChecked -eq $true
             $config.Bootstrap.InstallPowerShell7 = $wpfchkInstallPS7.IsChecked -eq $true
 
             # Execute Pipeline
             try {
                 Execute-FullSetup `
-                    -RunBootstrap ($wpfchkInstallWinget.IsChecked -eq $true -or $wpfchkInstallTerminal.IsChecked -eq $true -or $wpfchkInstallPS7.IsChecked -eq $true) `
+                    -RunBootstrap ($wpfchkInstallChoco.IsChecked -eq $true -or $wpfchkInstallTerminal.IsChecked -eq $true -or $wpfchkInstallPS7.IsChecked -eq $true) `
                     -RunPackages ($wpfchkRunPackages.IsChecked -eq $true) `
                     -RebootIfRequired ($wpfchkReboot.IsChecked -eq $true)
             } finally {
                 # Re-enable inputs
                 $wpfbtnRun.IsEnabled = $true
                 $wpfbtnCancel.IsEnabled = $true
-                $wpfchkInstallWinget.IsEnabled = $true
+                $wpfchkInstallChoco.IsEnabled = $true
                 $wpfchkInstallTerminal.IsEnabled = $true
                 $wpfchkInstallPS7.IsEnabled = $true
                 $wpfchkRunPackages.IsEnabled = $true

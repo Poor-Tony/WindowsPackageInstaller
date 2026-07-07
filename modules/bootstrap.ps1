@@ -1,11 +1,9 @@
 # modules/bootstrap.ps1
-# Bootstrapping module to install Winget, Windows Terminal, and PowerShell 7 on Windows IoT LTSC / Pro
+# Bootstrapping module to install Chocolatey, Windows Terminal, and PowerShell 7 on Windows IoT LTSC / Pro
 
 . (Join-Path $PSScriptRoot "utils.ps1")
 
 # Fallback links in case GitHub API is rate-limited or offline
-$Global:FallbackWingetBundle = "https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-$Global:FallbackWingetLicense = "https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/76fba573f02545629706ab99170237bc_License1.xml"
 $Global:FallbackTerminalBundle = "https://github.com/microsoft/terminal/releases/download/v1.20.11781.0/Microsoft.WindowsTerminal_1.20.11781.0_8wekyb3d8bbwe.msixbundle"
 $Global:FallbackPowerShellMsi = "https://github.com/PowerShell/PowerShell/releases/download/v7.4.3/PowerShell-7.4.3-win-x64.msi"
 
@@ -113,89 +111,6 @@ function Bootstrap-Dependencies {
     return $true
 }
 
-function Bootstrap-Winget {
-    param ([string]$TempDir)
-
-    Write-Log "===== Checking and Bootstrapping Windows Package Manager (Winget) ====="
-    
-    # Check if winget command is available and functional
-    $wingetExists = Get-Command "winget" -ErrorAction SilentlyContinue
-    if ($wingetExists) {
-        try {
-            $version = winget --version
-            Write-Log "WinGet is already installed and functional. Version: $version"
-            return $true
-        } catch {
-            Write-WarningLog "WinGet binary is registered but not functional. Attempting re-install/repair..."
-        }
-    }
-
-    Write-Log "Winget is not installed/functional. Proceeding with installation..."
-    
-    # Make sure dependencies are met first
-    if (-not (Bootstrap-Dependencies -TempDir $TempDir)) {
-        Write-ErrorLog "Aborting Winget installation because dependencies failed to install."
-        return $false
-    }
-
-    # Force the use of the stable v1.8.1911 release which does not require Windows App Runtime
-    $wingetBundleUrl = $Global:FallbackWingetBundle
-    $wingetLicenseUrl = $Global:FallbackWingetLicense
-
-    $bundlePath = Join-Path $TempDir "Microsoft.DesktopAppInstaller.msixbundle"
-    $licensePath = Join-Path $TempDir "Microsoft.DesktopAppInstaller.xml"
-
-    # Download bundle and license
-    $d1 = Download-File -Url $wingetBundleUrl -OutPath $bundlePath
-    $d2 = Download-File -Url $wingetLicenseUrl -OutPath $licensePath
-
-    if ($d1 -and $d2) {
-        try {
-            Write-Log "Installing Windows Package Manager (AppInstaller)..."
-            
-            # 1. Provision for all users (to support future logins)
-            try {
-                Write-Log "Attempting to register provisioned package for all users..."
-                Add-AppxProvisionedPackage -Online -PackagePath $bundlePath -LicensePath $licensePath -ErrorAction Stop | Out-Null
-                Write-Success "WinGet provisioned successfully for all users."
-            } catch {
-                Write-WarningLog "Add-AppxProvisionedPackage failed: $_. Continuing to current user registration..."
-            }
-
-            # 2. Register for the current user (required to be immediately available in this session)
-            Write-Log "Registering AppInstaller package for the current user..."
-            Add-AppxPackage -Path $bundlePath -ErrorAction Stop
-            Write-Success "WinGet package registered for current user."
-
-            # Warm up and register paths
-            Write-Log "Registering Winget application path..."
-            $winAppPath = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
-            if (-not ($env:PATH -like "*$winAppPath*")) {
-                Write-Log "Adding WindowsApps to session PATH environment variables."
-                $env:PATH += ";$winAppPath"
-            }
-            
-            # Run test using absolute path to bypass command cache in current session
-            Start-Sleep -Seconds 2
-            $targetExe = Join-Path $winAppPath "winget.exe"
-            if (Test-Path -Path $targetExe) {
-                $versionTest = & $targetExe --version
-                Write-Success "Winget is now functional! Version: $versionTest"
-                return $true
-            } else {
-                Write-ErrorLog "winget.exe was not found in $winAppPath after installation."
-                return $false
-            }
-        } catch {
-            Write-ErrorLog "Failed to register Winget package. Error: $_"
-            return $false
-        }
-    } else {
-        Write-ErrorLog "Failed to download Winget bundle or license."
-        return $false
-    }
-}
-
 function Bootstrap-WindowsTerminal {
     param ([string]$TempDir)
 
@@ -286,7 +201,7 @@ function Bootstrap-PowerShell7 {
 }
 
 function Bootstrap-Chocolatey {
-    Write-Log "===== Checking and Bootstrapping Chocolatey (Fallback Package Manager) ====="
+    Write-Log "===== Checking and Bootstrapping Chocolatey ====="
     
     $chocoExists = Get-Command "choco" -ErrorAction SilentlyContinue
     if ($chocoExists) {
@@ -332,7 +247,7 @@ function Bootstrap-Chocolatey {
 
 function Run-BootstrapProcess {
     param (
-        [bool]$InstallWinget = $true,
+        [bool]$InstallChocolatey = $true,
         [bool]$InstallTerminal = $true,
         [bool]$InstallPS7 = $true
     )
@@ -344,15 +259,9 @@ function Run-BootstrapProcess {
 
     $allSuccess = $true
 
-    if ($InstallWinget) {
-        $res = Bootstrap-Winget -TempDir $tempPath
-        if (-not $res) { 
-            Write-WarningLog "WinGet installation failed! Bootstrapping Chocolatey as a backup..."
-            $chocoRes = Bootstrap-Chocolatey
-            if (-not $chocoRes) {
-                $allSuccess = $false
-            }
-        }
+    if ($InstallChocolatey) {
+        $res = Bootstrap-Chocolatey
+        if (-not $res) { $allSuccess = $false }
     }
     if ($InstallTerminal) {
         $res = Bootstrap-WindowsTerminal -TempDir $tempPath

@@ -1,5 +1,5 @@
 # modules/packages.ps1
-# Handles Winget packages installation and custom installers
+# Handles Chocolatey packages installation and custom installers
 
 . (Join-Path $PSScriptRoot "utils.ps1")
 
@@ -9,112 +9,37 @@ function Install-SystemPackages {
         [array]$PackageList
     )
 
-    $wingetPath = "winget.exe"
-    $winAppPath = Join-Path $env:LOCALAPPDATA "Microsoft\WindowsApps"
-    $absoluteWinget = Join-Path $winAppPath "winget.exe"
-    
-    $wingetFunctional = $false
-    if (Test-Path -Path $absoluteWinget) {
-        $wingetPath = $absoluteWinget
-        try {
-            $null = & $wingetPath --version
-            $wingetFunctional = $true
-        } catch {
-            Write-WarningLog "Absolute winget.exe exists but failed to execute: $_"
-        }
-    }
-    
-    if (-not $wingetFunctional -and (Get-Command "winget" -ErrorAction SilentlyContinue)) {
-        try {
-            $null = winget --version
-            $wingetPath = "winget.exe"
-            $wingetFunctional = $true
-        } catch {
-            Write-WarningLog "Winget binary is registered but failed to execute."
-        }
-    }
-
-    if ($wingetFunctional) {
-        Write-Log "===== Installing Packages via Winget ====="
-        $failedPackages = @()
-
-        foreach ($pkg in $PackageList) {
-            Write-Log "Installing package: $pkg ..."
-            try {
-                $process = Start-Process -FilePath $wingetPath -ArgumentList "install --id `"$pkg`" --silent --accept-source-agreements --accept-package-agreements" -Wait -NoNewWindow -PassThru -ErrorAction Stop
-                $exitCode = $process.ExitCode
-                
-                # Check for success codes (0, or common already-installed exit codes)
-                if ($exitCode -eq 0 -or $exitCode -eq 2316632095 -or $exitCode -eq 2316632107) {
-                    Write-Success "Package '$pkg' is installed."
-                } else {
-                    Write-WarningLog "Winget install returned non-standard exit code ($exitCode) for '$pkg'."
-                    $failedPackages += $pkg
-                }
-            } catch {
-                Write-ErrorLog "Failed to execute winget for '$pkg'. Error: $_"
-                $failedPackages += $pkg
-            }
-        }
-
-        if ($failedPackages.Count -gt 0) {
-            Write-WarningLog "The following packages failed to install via Winget: $($failedPackages -join ', ')"
-            return $false
-        }
-
-        Write-Success "All packages installed successfully via Winget."
-        return $true
-    }
-
-    # Fallback to Chocolatey
+    # Verify Chocolatey is available
     $chocoFunctional = $false
     if (Get-Command "choco" -ErrorAction SilentlyContinue) {
         $chocoFunctional = $true
     }
 
     if ($chocoFunctional) {
-        Write-Log "===== WinGet not available. Installing via Chocolatey Fallback ====="
-        $packageMap = @{
-            "Mozilla.Firefox"            = "firefox"
-            "7zip.7zip"                  = "7zip"
-            "Notepad++.Notepad++"        = "notepadplusplus"
-            "Microsoft.VisualStudioCode" = "vscode"
-            "ZedIndustries.Zed"          = "zed"
-            "JanDeDobbeleer.OhMyPosh"    = "oh-my-posh"
-            "Git.Git"                    = "git"
-            "ONLYOFFICE.DesktopEditors"  = "onlyoffice"
-        }
-
+        Write-Log "===== Installing Packages via Chocolatey ====="
         $failedPackages = @()
 
         foreach ($pkg in $PackageList) {
-            $chocoId = $pkg
-            if ($packageMap.ContainsKey($pkg)) {
-                $chocoId = $packageMap[$pkg]
-            } else {
-                if ($pkg -match "\.") {
-                    $chocoId = $pkg.Split(".")[-1].ToLower()
-                }
-            }
-
-            Write-Log "Installing package via Chocolatey: $chocoId (mapped from $pkg) ..."
+            Write-Log "Installing package via Chocolatey: $pkg ..."
             try {
-                $process = Start-Process -FilePath "choco.exe" -ArgumentList "install `"$chocoId`" -y --no-progress" -Wait -NoNewWindow -PassThru -ErrorAction Stop
+                # Choco install with automatic confirmation (-y) and no progress bar for cleaner logs
+                $process = Start-Process -FilePath "choco.exe" -ArgumentList "install `"$pkg`" -y --no-progress" -Wait -NoNewWindow -PassThru -ErrorAction Stop
+                
                 # Choco exit codes: 0 = success, 3010 = reboot required
                 if ($process.ExitCode -eq 0 -or $process.ExitCode -eq 3010) {
-                    Write-Success "Package '$chocoId' installed successfully via Chocolatey."
+                    Write-Success "Package '$pkg' installed successfully via Chocolatey."
                 } else {
-                    Write-ErrorLog "Chocolatey failed to install '$chocoId' (Exit Code: $($process.ExitCode))."
+                    Write-ErrorLog "Chocolatey failed to install '$pkg' (Exit Code: $($process.ExitCode))."
                     $failedPackages += $pkg
                 }
             } catch {
-                Write-ErrorLog "Failed to run Chocolatey installer for '$chocoId'. Error: $_"
+                Write-ErrorLog "Failed to run Chocolatey installer for '$pkg'. Error: $_"
                 $failedPackages += $pkg
             }
         }
 
         if ($failedPackages.Count -gt 0) {
-            Write-WarningLog "The following packages failed to install via Chocolatey: $($failedPackages -join ', ')"
+            Write-WarningLog "The following packages failed to install: $($failedPackages -join ', ')"
             return $false
         }
 
@@ -122,7 +47,7 @@ function Install-SystemPackages {
         return $true
     }
 
-    Write-ErrorLog "Neither Winget nor Chocolatey is functional on this system. Package installation aborted."
+    Write-ErrorLog "Chocolatey is not functional on this system. Package installation aborted."
     return $false
 }
 

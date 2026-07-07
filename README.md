@@ -1,19 +1,18 @@
-# Windows Setup Utility & Bootstrapper
+# Windows Setup Utility & Bootstrapper (Chocolatey Version)
 
 A modular, robust, and interactive Windows setup utility designed for **Windows 11 IoT Enterprise LTSC**, **Windows 10 IoT Enterprise LTSC 2021**, and **Windows 11 Pro**. 
 
-The tool specializes in bootstrapping essential modern components (**WinGet**, **Windows Terminal**, and **PowerShell 7**) on LTSC systems where the Microsoft Store is unavailable, falling back to **Chocolatey** if WinGet installation is not successful, and installing a preset list of applications.
+The tool specializes in bootstrapping **Chocolatey** as the primary package manager, alongside **Windows Terminal** and **PowerShell 7**, followed by automated software provisioning.
 
 ---
 
 ## Features
 
 - **Offline-capable Bootstrapping**:
-  - **WinGet**: Downloads and registers the Windows Package Manager along with essential VCLibs and UI Xaml dependencies without needing the Microsoft Store.
-  - **Chocolatey (Fallback)**: If WinGet bootstrapping fails, the tool automatically installs Chocolatey as a backup package manager.
+  - **Chocolatey**: Downloads and installs the Chocolatey Package Manager silently.
   - **Windows Terminal**: Installs the MSIX package.
   - **PowerShell 7**: Installs the MSI package silently.
-- **Package Provisioning**: Runs installation commands in an unattended sequence to install custom developer tools/utilities. Supports WinGet natively and falls back to Chocolatey package mapping automatically.
+- **Package Provisioning**: Runs Chocolatey commands in an unattended sequence to install custom developer tools/utilities.
 
 ---
 
@@ -26,9 +25,9 @@ WindowsPackageInstaller/
 │   README.md                 # This documentation file
 │
 └───modules/
-        bootstrap.ps1         # Bootstrapping logic for WinGet, Terminal, PS7, and Chocolatey fallback
-        packages.ps1          # Package installations via Winget/Chocolatey and custom URLs
-        utils.ps1             # Logging, OS checks, NuGet extractors, and STA thread relaunchers
+        bootstrap.ps1         # Bootstrapping logic for Chocolatey, Terminal, and PS7
+        packages.ps1          # Package installations via Chocolatey and custom URLs
+        utils.ps1             # Logging, OS checks, and STA thread relaunchers
 ```
 
 ---
@@ -70,5 +69,5 @@ WindowsPackageInstaller/
 The setup is fully configurable via [config.json](file:///home/andreas/Code/WindowsPackageInstaller/config.json). 
 
 Key sections include:
-- `Bootstrap`: Toggle the installations of Winget, Windows Terminal, and PowerShell 7.
-- `Packages`: Define package IDs to download (e.g. `Git.Git`, `7zip.7zip`) and custom installer configurations.
+- `Bootstrap`: Toggle the installations of Chocolatey, Windows Terminal, and PowerShell 7.
+- `Packages`: Define Chocolatey package IDs to download (e.g. `git`, `7zip`) and custom installer configurations.
