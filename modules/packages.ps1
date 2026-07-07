@@ -5,8 +5,7 @@
 
 function Install-SystemPackages {
     param (
-        [Parameter(Mandatory=$true)]
-        [array]$PackageList
+        [array]$PackageList = @()
     )
 
     # Verify Chocolatey is available
@@ -53,8 +52,7 @@ function Install-SystemPackages {
 
 function Install-CustomInstallers {
     param (
-        [Parameter(Mandatory=$true)]
-        [array]$CustomInstallersList
+        [array]$CustomInstallersList = @()
     )
 
     if ($CustomInstallersList.Count -eq 0) {
