@@ -276,6 +276,51 @@ function Bootstrap-PowerShell7 {
     return $false
 }
 
+function Bootstrap-Chocolatey {
+    Write-Log "===== Checking and Bootstrapping Chocolatey (Fallback Package Manager) ====="
+    
+    $chocoExists = Get-Command "choco" -ErrorAction SilentlyContinue
+    if ($chocoExists) {
+        Write-Log "Chocolatey is already installed."
+        return $true
+    }
+
+    Write-Log "Chocolatey is not detected. Installing Chocolatey..."
+    try {
+        # Force TLS 1.2
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+        
+        # Download and run the install.ps1 script
+        $installScriptUrl = "https://community.chocolatey.org/install.ps1"
+        $scriptContent = Invoke-RestMethod -Uri $installScriptUrl -UseBasicParsing -ErrorAction Stop
+        
+        # Run the installation script in the current session
+        Invoke-Expression $scriptContent
+        
+        # Add Chocolatey's path to the current session env:Path if not already present
+        $chocoPath = Join-Path $env:ALLUSERSPROFILE "chocolatey\bin"
+        if (-not ($env:PATH -like "*$chocoPath*")) {
+            $env:PATH += ";$chocoPath"
+        }
+        
+        # Refresh env variables for the current session (Chocolatey sets chocolateyInstall)
+        $env:ChocolateyInstall = [System.Environment]::GetEnvironmentVariable("ChocolateyInstall", "Machine")
+        
+        # Verify it works
+        $testChoco = Get-Command "choco" -ErrorAction SilentlyContinue
+        if ($testChoco) {
+            Write-Success "Chocolatey installed successfully!"
+            return $true
+        } else {
+            Write-ErrorLog "Chocolatey command was not registered in the session PATH after installation."
+            return $false
+        }
+    } catch {
+        Write-ErrorLog "Failed to install Chocolatey. Error: $_"
+        return $false
+    }
+}
+
 function Run-BootstrapProcess {
     param (
         [bool]$InstallWinget = $true,
@@ -292,7 +337,13 @@ function Run-BootstrapProcess {
 
     if ($InstallWinget) {
         $res = Bootstrap-Winget -TempDir $tempPath
-        if (-not $res) { $allSuccess = $false }
+        if (-not $res) { 
+            Write-WarningLog "WinGet installation failed! Bootstrapping Chocolatey as a backup..."
+            $chocoRes = Bootstrap-Chocolatey
+            if (-not $chocoRes) {
+                $allSuccess = $false
+            }
+        }
     }
     if ($InstallTerminal) {
         $res = Bootstrap-WindowsTerminal -TempDir $tempPath

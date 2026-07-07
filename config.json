@@ -1,13 +1,12 @@
 {
   "Meta": {
-    "Description": "Windows Setup Configuration for IoT LTSC & Pro",
-    "Version": "1.0.0"
+    "Description": "Windows Setup Configuration for LTSC & Pro (Slimmed)",
+    "Version": "1.1.0"
   },
   "System": {
-    "RebootIfRequired": true,
+    "RebootIfRequired": false,
     "LoggingEnabled": true,
-    "LogFilePath": "C:\\Windows\\Temp\\WindowsSetupUtility.log",
-    "BootstrapOnly": false
+    "LogFilePath": "C:\\Windows\\Temp\\WindowsSetupUtility.log"
   },
   "Bootstrap": {
     "InstallWinget": true,
@@ -18,52 +17,16 @@
     "Winget": {
       "Enable": true,
       "InstallList": [
-        "Git.Git",
+        "Mozilla.Firefox",
+        "7zip.7zip",
+        "Notepad++.Notepad++",
         "Microsoft.VisualStudioCode",
-        "7zip.7zip"
+        "ZedIndustries.Zed",
+        "JanDeDobbeleer.OhMyPosh",
+        "Git.Git",
+        "ONLYOFFICE.DesktopEditors"
       ]
     },
     "CustomInstallers": []
-  },
-  "Features": {
-    "Enable": [
-      "Microsoft-Windows-Subsystem-Linux"
-    ],
-    "Disable": []
-  },
-  "Services": {
-    "Configure": []
-  },
-  "IoT": {
-    "ShellLauncher": {
-      "Enable": false,
-      "ShellPath": "C:\\Path\\To\\CustomShell.exe"
-    },
-    "UnifiedWriteFilter": {
-      "Configure": false,
-      "OverlayType": "RAM",
-      "OverlaySizeMB": 1024,
-      "Exclusions": []
-    },
-    "AutoLogon": {
-      "Enable": false,
-      "Username": "Operator",
-      "Password": "SafePassword123!",
-      "Domain": ""
-    },
-    "LockScreen": {
-      "DisableLockScreen": true,
-      "DisableKeyCombinations": false
-    }
-  },
-  "Security": {
-    "Defender": {
-      "RealTimeProtection": true,
-      "Exclusions": []
-    },
-    "UAC": {
-      "ConsentPromptBehaviorAdmin": 5,
-      "EnableLUA": 1
-    }
   }
 }

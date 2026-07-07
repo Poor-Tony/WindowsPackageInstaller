@@ -1,5 +1,5 @@
 # Setup.ps1
-# Main entrypoint script for Windows Setup Utility
+# Main entrypoint script for Windows Setup Utility (Slimmed Down)
 # Usage: .\Setup.ps1 [-Mode <CLI|GUI|Unattended>] [-ConfigPath <path>]
 
 [CmdletBinding()]
@@ -41,9 +41,6 @@ $modulesDir = Join-Path $scriptDir "modules"
 . (Join-Path $modulesDir "utils.ps1")
 . (Join-Path $modulesDir "bootstrap.ps1")
 . (Join-Path $modulesDir "packages.ps1")
-. (Join-Path $modulesDir "features.ps1")
-. (Join-Path $modulesDir "iot.ps1")
-. (Join-Path $modulesDir "security.ps1")
 
 # Verify configuration file
 $resolvedConfigPath = Resolve-Path -Path (Join-Path $scriptDir $ConfigPath) -ErrorAction SilentlyContinue
@@ -91,9 +88,6 @@ function Run-PipelineStep {
 function Execute-FullSetup {
     param (
         [bool]$RunBootstrap = $true,
-        [bool]$RunFeatures = $true,
-        [bool]$RunIoT = $true,
-        [bool]$RunSecurity = $true,
         [bool]$RunPackages = $true,
         [bool]$RebootIfRequired = $true
     )
@@ -101,7 +95,7 @@ function Execute-FullSetup {
     Write-Log "===== WINDOWS SETUP PIPELINE STARTED ====="
     $globalRebootNeeded = $false
 
-    # Step 1: Bootstrapping (WinGet, Terminal, PowerShell 7)
+    # Step 1: Bootstrapping (WinGet, Terminal, PowerShell 7, Choco Fallback)
     if ($RunBootstrap) {
         Run-PipelineStep "Bootstrap Core Tools" {
             $bootstrapSuccess = Run-BootstrapProcess `
@@ -110,85 +104,16 @@ function Execute-FullSetup {
                 -InstallPS7 ($config.Bootstrap.InstallPowerShell7)
                 
             if (-not $bootstrapSuccess) {
-                Write-WarningLog "One or more core tools failed to bootstrap. Proceeding with remaining steps..."
+                Write-WarningLog "One or more core tools failed to bootstrap."
             }
         }
     }
 
-    # Step 2: System optional features and services
-    if ($RunFeatures -and $null -ne $config.Features) {
-        Run-PipelineStep "Optional Features & Services" {
-            $rebootNeeded = Configure-WindowsFeatures `
-                -EnableList ($config.Features.Enable) `
-                -DisableList ($config.Features.Disable)
-                
-            if ($rebootNeeded) { $globalRebootNeeded = $true }
-            
-            if ($null -ne $config.Services -and $null -ne $config.Services.Configure) {
-                Configure-WindowsServices -ServiceConfigList ($config.Services.Configure)
-            }
-        }
-    }
-
-    # Step 3: IoT Specific Settings
-    if ($RunIoT -and $null -ne $config.IoT) {
-        Run-PipelineStep "IoT Registry Configurations" {
-            if ($null -ne $config.IoT.ShellLauncher) {
-                Configure-ShellLauncher `
-                    -Enable ($config.IoT.ShellLauncher.Enable) `
-                    -ShellPath ($config.IoT.ShellLauncher.ShellPath)
-            }
-            
-            if ($null -ne $config.IoT.AutoLogon) {
-                Configure-AutoLogon `
-                    -Enable ($config.IoT.AutoLogon.Enable) `
-                    -Username ($config.IoT.AutoLogon.Username) `
-                    -Password ($config.IoT.AutoLogon.Password) `
-                    -Domain ($config.IoT.AutoLogon.Domain)
-            }
-            
-            if ($null -ne $config.IoT.LockScreen) {
-                Configure-LockScreenSettings `
-                    -DisableLockScreen ($config.IoT.LockScreen.DisableLockScreen) `
-                    -DisableKeyCombinations ($config.IoT.LockScreen.DisableKeyCombinations)
-            }
-            
-            if ($null -ne $config.IoT.UnifiedWriteFilter) {
-                Configure-UnifiedWriteFilter `
-                    -Configure ($config.IoT.UnifiedWriteFilter.Configure) `
-                    -OverlayType ($config.IoT.UnifiedWriteFilter.OverlayType) `
-                    -OverlaySizeMB ($config.IoT.UnifiedWriteFilter.OverlaySizeMB) `
-                    -Exclusions ($config.IoT.UnifiedWriteFilter.Exclusions)
-            }
-        }
-    }
-
-    # Step 4: Security (Defender & UAC)
-    if ($RunSecurity -and $null -ne $config.Security) {
-        Run-PipelineStep "Security Policy Settings" {
-            if ($null -ne $config.Security.UAC) {
-                Configure-UAC `
-                    -ConsentPromptBehaviorAdmin ($config.Security.UAC.ConsentPromptBehaviorAdmin) `
-                    -EnableLUA ($config.Security.UAC.EnableLUA)
-                # UAC disable requires reboot
-                if ($config.Security.UAC.EnableLUA -eq 0) {
-                    $globalRebootNeeded = $true
-                }
-            }
-            
-            if ($null -ne $config.Security.Defender) {
-                Configure-WindowsDefender `
-                    -RealTimeProtection ($config.Security.Defender.RealTimeProtection) `
-                    -Exclusions ($config.Security.Defender.Exclusions)
-            }
-        }
-    }
-
-    # Step 5: Winget Applications List
+    # Step 2: Application Packages List
     if ($RunPackages -and $null -ne $config.Packages) {
         Run-PipelineStep "Application Package Provisioning" {
             if ($config.Packages.Winget.Enable -and $null -ne $config.Packages.Winget.InstallList) {
-                Install-WingetPackages -PackageList ($config.Packages.Winget.InstallList)
+                Install-SystemPackages -PackageList ($config.Packages.Winget.InstallList)
             }
             if ($null -ne $config.Packages.CustomInstallers) {
                 Install-CustomInstallers -CustomInstallersList ($config.Packages.CustomInstallers)
@@ -229,26 +154,20 @@ switch ($Mode) {
             Write-Host " Build       : $($os.BuildNumber) " -ForegroundColor Gray
             Write-Host " Log File    : $Global:LogFilePath" -ForegroundColor Gray
             Write-Host "----------------------------------------------------------"
-            Write-Host " [1] Run FULL Setup (Unattended Run-List)"
+            Write-Host " [1] Run FULL Setup (Bootstrap + Applications)"
             Write-Host " [2] Run Core Bootstrapping Only (WinGet, Terminal, PS7)"
-            Write-Host " [3] Apply Optional Features & Services Config"
-            Write-Host " [4] Apply IoT Tweaks (UWF, Auto-Logon, custom shell)"
-            Write-Host " [5] Apply Security Policy Settings (Defender, UAC)"
-            Write-Host " [6] Install Applications List (Winget + Custom)"
-            Write-Host " [7] Reboot System"
-            Write-Host " [8] Exit"
+            Write-Host " [3] Install Applications List (WinGet / Choco Fallback)"
+            Write-Host " [4] Reboot System"
+            Write-Host " [5] Exit"
             Write-Host "==========================================================" -ForegroundColor Cyan
             
-            $choice = Read-Host "Select an option [1-8]"
+            $choice = Read-Host "Select an option [1-5]"
             switch ($choice) {
                 "1" { Execute-FullSetup -RebootIfRequired $false; Read-Host "Press Enter to return..." }
-                "2" { Execute-FullSetup -RunBootstrap $true -RunFeatures $false -RunIoT $false -RunSecurity $false -RunPackages $false -RebootIfRequired $false; Read-Host "Press Enter to return..." }
-                "3" { Execute-FullSetup -RunBootstrap $false -RunFeatures $true -RunIoT $false -RunSecurity $false -RunPackages $false -RebootIfRequired $false; Read-Host "Press Enter to return..." }
-                "4" { Execute-FullSetup -RunBootstrap $false -RunFeatures $false -RunIoT $true -RunSecurity $false -RunPackages $false -RebootIfRequired $false; Read-Host "Press Enter to return..." }
-                "5" { Execute-FullSetup -RunBootstrap $false -RunFeatures $false -RunIoT $false -RunSecurity $true -RunPackages $false -RebootIfRequired $false; Read-Host "Press Enter to return..." }
-                "6" { Execute-FullSetup -RunBootstrap $false -RunFeatures $false -RunIoT $false -RunSecurity $false -RunPackages $true -RebootIfRequired $false; Read-Host "Press Enter to return..." }
-                "7" { Restart-Computer -Force }
-                "8" { exit }
+                "2" { Execute-FullSetup -RunBootstrap $true -RunPackages $false -RebootIfRequired $false; Read-Host "Press Enter to return..." }
+                "3" { Execute-FullSetup -RunBootstrap $false -RunPackages $true -RebootIfRequired $false; Read-Host "Press Enter to return..." }
+                "4" { Restart-Computer -Force }
+                "5" { exit }
             }
         }
     }
@@ -263,7 +182,7 @@ switch ($Mode) {
         $xaml = @"
         <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                Title="Windows IoT LTSC Setup Utility" Height="620" Width="850"
+                Title="Windows Setup Utility" Height="500" Width="800"
                 WindowStartupLocation="CenterScreen" Background="#12121E" Foreground="#FFFFFF"
                 BorderBrush="#3B2E5C" BorderThickness="1" ResizeMode="NoResize">
             <Grid Margin="15">
@@ -278,9 +197,9 @@ switch ($Mode) {
                     <Grid>
                         <StackPanel>
                             <TextBlock Text="Windows Setup Utility" FontSize="24" FontWeight="Bold" Foreground="#8B5CF6"/>
-                            <TextBlock Text="Automated OS deployment, bootstrapping &amp; provisioning framework" FontSize="12" Foreground="#8E8EA2" Margin="0,4,0,0"/>
+                            <TextBlock Text="Automated bootstrapping &amp; package provisioning framework" FontSize="12" Foreground="#8E8EA2" Margin="0,4,0,0"/>
                         </StackPanel>
-                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Text="v1.0.0" Foreground="#06B6D4" FontSize="14" FontWeight="Bold"/>
+                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center" Text="v1.1.0" Foreground="#06B6D4" FontSize="14" FontWeight="Bold"/>
                     </Grid>
                 </Border>
                 
@@ -300,20 +219,17 @@ switch ($Mode) {
                             <Border BorderBrush="#2A2A3F" BorderThickness="0,0,0,1" Padding="0,0,0,10" Margin="0,0,0,10">
                                 <StackPanel>
                                     <TextBlock Text="Bootstrap Packages" FontSize="12" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,8"/>
-                                    <CheckBox Name="chkInstallWinget" Content="Bootstrap WinGet" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,6"/>
+                                    <CheckBox Name="chkInstallWinget" Content="Bootstrap WinGet (Choco Fallback)" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,6"/>
                                     <CheckBox Name="chkInstallTerminal" Content="Bootstrap Windows Terminal" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,6"/>
                                     <CheckBox Name="chkInstallPS7" Content="Bootstrap PowerShell 7" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,4"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Modules -->
+                            <!-- Provisioning -->
                             <Border BorderBrush="#2A2A3F" BorderThickness="0,0,0,1" Padding="0,0,0,10" Margin="0,0,0,10">
                                 <StackPanel>
-                                    <TextBlock Text="Configuration Modules" FontSize="12" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,8"/>
-                                    <CheckBox Name="chkRunFeatures" Content="Enable Optional Features &amp; Services" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,6"/>
-                                    <CheckBox Name="chkRunIoT" Content="Apply IoT Settings (UWF, shell, auto-logon)" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,6"/>
-                                    <CheckBox Name="chkRunSecurity" Content="Configure Security Policies (UAC, Defender)" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,6"/>
-                                    <CheckBox Name="chkRunPackages" Content="Install Winget Applications List" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Application Provisioning" FontSize="12" FontWeight="Bold" Foreground="#8B5CF6" Margin="0,0,0,8"/>
+                                    <CheckBox Name="chkRunPackages" Content="Install Applications List" Foreground="#D1D5DB" IsChecked="True" Margin="0,0,0,4"/>
                                 </StackPanel>
                             </Border>
 
@@ -416,9 +332,6 @@ switch ($Mode) {
             $wpfchkInstallWinget.IsEnabled = $false
             $wpfchkInstallTerminal.IsEnabled = $false
             $wpfchkInstallPS7.IsEnabled = $false
-            $wpfchkRunFeatures.IsEnabled = $false
-            $wpfchkRunIoT.IsEnabled = $false
-            $wpfchkRunSecurity.IsEnabled = $false
             $wpfchkRunPackages.IsEnabled = $false
             $wpfchkReboot.IsEnabled = $false
             
@@ -434,9 +347,6 @@ switch ($Mode) {
             try {
                 Execute-FullSetup `
                     -RunBootstrap ($wpfchkInstallWinget.IsChecked -eq $true -or $wpfchkInstallTerminal.IsChecked -eq $true -or $wpfchkInstallPS7.IsChecked -eq $true) `
-                    -RunFeatures ($wpfchkRunFeatures.IsChecked -eq $true) `
-                    -RunIoT ($wpfchkRunIoT.IsChecked -eq $true) `
-                    -RunSecurity ($wpfchkRunSecurity.IsChecked -eq $true) `
                     -RunPackages ($wpfchkRunPackages.IsChecked -eq $true) `
                     -RebootIfRequired ($wpfchkReboot.IsChecked -eq $true)
             } finally {
@@ -446,9 +356,6 @@ switch ($Mode) {
                 $wpfchkInstallWinget.IsEnabled = $true
                 $wpfchkInstallTerminal.IsEnabled = $true
                 $wpfchkInstallPS7.IsEnabled = $true
-                $wpfchkRunFeatures.IsEnabled = $true
-                $wpfchkRunIoT.IsEnabled = $true
-                $wpfchkRunSecurity.IsEnabled = $true
                 $wpfchkRunPackages.IsEnabled = $true
                 $wpfchkReboot.IsEnabled = $true
                 $Global:UIConsoleTextBox = $null
