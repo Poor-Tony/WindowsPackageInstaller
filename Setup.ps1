@@ -9,11 +9,40 @@ param (
     [string]$ConfigPath = "config.json"
 )
 
-# 1. Relaunch check for Administrator and STA Mode (WPF UI requires STA)
+# 1. Relaunch check for Administrator, STA Mode (WPF UI requires STA), and PowerShell Version
 $isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 $isSTA = [System.Threading.Thread]::CurrentThread.GetApartmentState() -eq 'STA'
+$isPS5 = $PSVersionTable.PSVersion.Major -le 5
 
-if (-not $isElevated -or ($Mode -eq "GUI" -and -not $isSTA)) {
+# Check if pwsh (PowerShell 6+) is installed on the system
+$pwshDefaultPath = "$env:ProgramFiles\PowerShell\7\pwsh.exe"
+$pwshExists = Get-Command "pwsh" -ErrorAction SilentlyContinue
+$hasNewerVersion = $false
+$psExe = "powershell.exe"
+
+try {
+    $psExe = [System.Diagnostics.Process]::GetCurrentProcess().MainModule.FileName
+} catch {}
+
+if ($pwshExists) {
+    $hasNewerVersion = $true
+    $psExe = $pwshExists.Source
+} elseif (Test-Path -Path $pwshDefaultPath) {
+    $hasNewerVersion = $true
+    $psExe = $pwshDefaultPath
+}
+
+# Determine if relaunch is required
+$needRelaunch = $false
+if (-not $isElevated) {
+    $needRelaunch = $true
+} elseif ($Mode -eq "GUI" -and -not $isSTA) {
+    $needRelaunch = $true
+} elseif ($isPS5 -and $hasNewerVersion) {
+    $needRelaunch = $true
+}
+
+if ($needRelaunch) {
     $argsList = "-NoProfile -ExecutionPolicy Bypass"
     if ($Mode -eq "GUI" -and -not $isSTA) {
         $argsList += " -STA"
@@ -28,8 +57,8 @@ if (-not $isElevated -or ($Mode -eq "GUI" -and -not $isSTA)) {
         $argsList += " -ConfigPath `"$ConfigPath`""
     }
 
-    # Relaunch process elevated
-    Start-Process powershell.exe -ArgumentList $argsList -Verb RunAs
+    # Relaunch process elevated using the best available PowerShell executable
+    Start-Process $psExe -ArgumentList $argsList -Verb RunAs
     exit
 }
 
