@@ -1,8 +1,7 @@
 # modules/packages.ps1
 # Handles Winget packages installation and custom installers
 
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path $scriptPath "utils.ps1")
+. (Join-Path $PSScriptRoot "utils.ps1")
 
 function Install-WingetPackages {
     param (
@@ -65,7 +64,7 @@ function Install-CustomInstallers {
     }
 
     Write-Log "===== Installing Custom Packages ====="
-    $tempPath = Join-Path $scriptPath "..\temp"
+    $tempPath = Join-Path $PSScriptRoot "..\temp"
     if (-not (Test-Path -Path $tempPath)) {
         New-Item -ItemType Directory -Path $tempPath -Force | Out-Null
     }

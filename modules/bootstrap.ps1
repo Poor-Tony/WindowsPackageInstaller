@@ -1,8 +1,7 @@
 # modules/bootstrap.ps1
 # Bootstrapping module to install Winget, Windows Terminal, and PowerShell 7 on Windows IoT LTSC / Pro
 
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path $scriptPath "utils.ps1")
+. (Join-Path $PSScriptRoot "utils.ps1")
 
 # Fallback links in case GitHub API is rate-limited or offline
 $Global:FallbackWingetBundle = "https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
@@ -284,7 +283,7 @@ function Run-BootstrapProcess {
         [bool]$InstallPS7 = $true
     )
 
-    $tempPath = Join-Path $scriptPath "..\temp"
+    $tempPath = Join-Path $PSScriptRoot "..\temp"
     if (-not (Test-Path -Path $tempPath)) {
         New-Item -ItemType Directory -Path $tempPath -Force | Out-Null
     }

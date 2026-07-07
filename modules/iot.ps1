@@ -1,8 +1,7 @@
 # modules/iot.ps1
 # Configures Windows IoT specific features (UWF, Shell Launcher, Auto-Logon, Lock Screen)
 
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path $scriptPath "utils.ps1")
+. (Join-Path $PSScriptRoot "utils.ps1")
 
 function Configure-ShellLauncher {
     param (

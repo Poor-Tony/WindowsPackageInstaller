@@ -1,8 +1,7 @@
 # modules/security.ps1
 # Configures Security parameters (Windows Defender & User Account Control UAC)
 
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path $scriptPath "utils.ps1")
+. (Join-Path $PSScriptRoot "utils.ps1")
 
 function Configure-UAC {
     param (

@@ -34,7 +34,7 @@ if (-not $isElevated -or ($Mode -eq "GUI" -and -not $isSTA)) {
 }
 
 # 2. Set Script Directory and Import Modules
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptDir = $PSScriptRoot
 $modulesDir = Join-Path $scriptDir "modules"
 
 # Dot source modules
@@ -363,10 +363,9 @@ switch ($Mode) {
                                                 </Border>
                                             </ControlTemplate>
                                         </Setter.Value>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Button.Resources>
+                                    </Setter>
+                                </Style>
+                            </Button.Resources>
                         </Button>
                         
                         <Button Name="btnRun" Content="RUN SETUP" Width="150" Height="35" Background="#8B5CF6" Foreground="#FFFFFF" FontWeight="Bold" BorderThickness="0">
@@ -380,10 +379,9 @@ switch ($Mode) {
                                                 </Border>
                                             </ControlTemplate>
                                         </Setter.Value>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Button.Resources>
+                                    </Setter>
+                                </Style>
+                            </Button.Resources>
                         </Button>
                     </StackPanel>
                 </Grid>

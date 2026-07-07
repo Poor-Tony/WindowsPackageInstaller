@@ -1,8 +1,7 @@
 # modules/features.ps1
 # Configures Windows Optional Features and Services
 
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-. (Join-Path $scriptPath "utils.ps1")
+. (Join-Path $PSScriptRoot "utils.ps1")
 
 function Configure-WindowsFeatures {
     param (
